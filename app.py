@@ -450,8 +450,7 @@ if st.session_state.resultados is not None:
             sucesso, mensagem = registrar_avaliacoes_google_sheets(registros)
             if sucesso:
                 st.success(mensagem)
-                for numero in range(1, len(resultados) + 1):
-                    st.session_state[f"avaliacao_{numero}"] = "Não avaliado"
+                st.info("Suas avaliações foram registradas. Obrigado pela contribuição!")
             else:
                 st.error(mensagem)
 
