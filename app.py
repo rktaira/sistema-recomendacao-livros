@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import re
+import unicodedata
 from pathlib import Path
 from datetime import datetime, timezone
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -79,13 +80,50 @@ def treinar_modelo(textos):
 # ---------------------------------------------------------
 # FUNÇÕES DE RECOMENDAÇÃO
 # ---------------------------------------------------------
+def normalizar_titulo(titulo):
+    """Padroniza o título para identificar repetições no catálogo."""
+    titulo = str(titulo).casefold().strip()
+    titulo = unicodedata.normalize("NFKD", titulo)
+    titulo = "".join(
+        caractere for caractere in titulo
+        if not unicodedata.combining(caractere)
+    )
+    # Ignora diferenças de pontuação e espaços ao comparar títulos.
+    titulo = re.sub(r"[^a-z0-9]+", " ", titulo)
+    return " ".join(titulo.split())
+
+
+def selecionar_indices_unicos(similaridades, dados, quantidade=5, excluir=None):
+    """Seleciona os mais similares sem repetir títulos."""
+    indices_ordenados = similaridades.argsort()[::-1]
+    indices_selecionados = []
+    titulos_encontrados = set()
+
+    for indice in indices_ordenados:
+        if excluir is not None and indice == excluir:
+            continue
+
+        chave_titulo = normalizar_titulo(dados.iloc[indice]["titulo"])
+        if not chave_titulo or chave_titulo in titulos_encontrados:
+            continue
+
+        titulos_encontrados.add(chave_titulo)
+        indices_selecionados.append(indice)
+
+        if len(indices_selecionados) == quantidade:
+            break
+
+    return indices_selecionados
+
+
 def recomendar_por_livro(indice_livro, matriz, dados, quantidade=5):
     similaridades = linear_kernel(
         matriz[indice_livro], matriz
     ).flatten()
 
-    indices = similaridades.argsort()[::-1]
-    indices = [i for i in indices if i != indice_livro][:quantidade]
+    indices = selecionar_indices_unicos(
+        similaridades, dados, quantidade, excluir=indice_livro
+    )
 
     resultado = dados.iloc[indices].copy()
     resultado["similaridade"] = similaridades[indices]
@@ -102,7 +140,7 @@ def recomendar_por_texto(texto, vetorizador, matriz, dados, quantidade=5):
         vetor_consulta, matriz
     ).flatten()
 
-    indices = similaridades.argsort()[::-1][:quantidade]
+    indices = selecionar_indices_unicos(similaridades, dados, quantidade)
 
     resultado = dados.iloc[indices].copy()
     resultado["similaridade"] = similaridades[indices]
