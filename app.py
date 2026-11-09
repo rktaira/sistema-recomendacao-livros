@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import re
 from pathlib import Path
 from datetime import datetime, timezone
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -31,9 +32,23 @@ def carregar_livros(caminho):
         if coluna not in dados.columns:
             raise ValueError(f"A coluna obrigatória '{coluna}' não foi encontrada.")
 
+    # Corrige aspas tipográficas que vieram como caracteres de controle
+    # (por exemplo, U+0093 e U+0094) em algumas descrições do CSV.
+    def limpar_texto(texto):
+        texto = str(texto)
+        texto = texto.replace("\u0091", "‘").replace("\u0092", "’")
+        texto = texto.replace("\u0093", "“").replace("\u0094", "”")
+        texto = texto.replace("\u0096", "–").replace("\u0097", "—")
+        # Remove caracteres de controle invisíveis ou não imprimíveis,
+        # preservando tabulações e quebras de linha.
+        texto = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", texto)
+        return texto.strip()
+
     dados["descricao"] = (
-        dados["descricao"].fillna("").astype(str).str.strip()
+        dados["descricao"].fillna("").astype(str).map(limpar_texto)
     )
+    dados["titulo"] = dados["titulo"].fillna("Título não informado").astype(str).map(limpar_texto)
+    dados["autor"] = dados["autor"].fillna("Autor não informado").astype(str).map(limpar_texto)
     dados["titulo"] = dados["titulo"].fillna("Título não informado").astype(str)
     dados["autor"] = dados["autor"].fillna("Autor não informado").astype(str)
 
