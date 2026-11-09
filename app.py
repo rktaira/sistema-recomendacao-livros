@@ -53,6 +53,13 @@ def carregar_livros(caminho):
     dados["titulo"] = dados["titulo"].fillna("Título não informado").astype(str)
     dados["autor"] = dados["autor"].fillna("Autor não informado").astype(str)
 
+    # Remove anúncios/listagens de colecionáveis que não são livros.
+    dados = dados[
+        ~dados["titulo"].str.contains(
+            "figuras de chumbo", case=False, na=False, regex=False
+        )
+    ].copy()
+
     # O modelo textual precisa de uma sinopse não vazia.
     dados = dados[dados["descricao"] != ""].copy()
     dados = dados.reset_index(drop=True)
@@ -244,7 +251,7 @@ def registrar_avaliacoes_google_sheets(registros):
 # ---------------------------------------------------------
 # INICIALIZAÇÃO
 # ---------------------------------------------------------
-st.title("📚 Sistema de Recomendação de Livros")
+st.title("Sistema de Recomendação de Livros")
 st.write(
     "Encontre livros semelhantes a uma obra que você gostou "
     "ou descubra sugestões a partir de uma sinopse escrita por você."
@@ -266,7 +273,11 @@ except Exception as erro:
     st.error(f"Erro ao carregar os dados ou preparar o modelo: {erro}")
     st.stop()
 
-st.caption(f"Catálogo disponível: {len(livros):,} livros com sinopse.".replace(",", "."))
+st.markdown(
+    f"Catálogo disponível: {len(livros):,} livros com sinopse. "
+    "Fonte dos dados: [Kaggle — Livros Skoob](https://www.kaggle.com/datasets/victorstein/livros-skoob)."
+    .replace(",", ".")
+)
 
 
 # ---------------------------------------------------------
@@ -403,7 +414,7 @@ if st.session_state.resultados is not None:
                 chave = f"avaliacao_{numero}"
                 st.radio(
                     "Sua avaliação:",
-                    options=["Não avaliado", "👍 Gostei", "👎 Não gostei"],
+                    options=["Não avaliado", "👍 Gostei da Recomendação", "👎 Não gostei"],
                     key=chave,
                     label_visibility="collapsed"
                 )
@@ -430,7 +441,7 @@ if st.session_state.resultados is not None:
                 "autor_recomendado": str(livro["autor"]),
                 "genero_recomendado": str(livro.get("genero", "")),
                 "similaridade": round(float(livro["similaridade"]), 6),
-                "avaliacao": "Gostei" if avaliacao == "👍 Gostei" else "Não gostei"
+                "avaliacao": "Gostei da Recomendação" if avaliacao == "👍 Gostei da Recomendação" else "Não gostei"
             })
 
         if not registros:
