@@ -232,46 +232,38 @@ if "avaliacoes" not in st.session_state:
 
 with aba_livro:
     st.subheader("Encontre livros parecidos com outro livro")
-    busca_titulo = st.text_input(
-        "Digite parte do título:",
-        key="busca_titulo",
-        placeholder="Ex.: Harry Potter"
+    st.write("Digite o título no campo abaixo e escolha uma das sugestões.")
+
+    # O próprio selectbox oferece busca digitável dentro do campo de seleção.
+    # Assim, não precisamos exibir uma segunda lista de resultados abaixo.
+    escolha = st.selectbox(
+        "Buscar livro no catálogo:",
+        options=livros.index.tolist(),
+        index=None,
+        placeholder="Comece a digitar o título do livro...",
+        format_func=lambda i: f"{livros.loc[i, 'titulo']} — {livros.loc[i, 'autor']}",
+        key="livro_selecionado"
     )
 
-    opcoes = pd.DataFrame()
-    if busca_titulo.strip():
-        opcoes = livros[
-            livros["titulo"].str.contains(
-                busca_titulo.strip(),
-                case=False,
-                na=False,
-                regex=False
-            )
-        ].head(30)
-
-    if not opcoes.empty:
-        opcoes["opcao"] = opcoes["titulo"] + " — " + opcoes["autor"]
-        escolha = st.selectbox(
-            "Selecione o livro desejado:",
-            options=opcoes.index.tolist(),
-            format_func=lambda i: opcoes.loc[i, "opcao"],
-            key="livro_selecionado"
+    if st.button(
+        "Confirmar livro e buscar recomendações",
+        key="botao_livro",
+        type="primary",
+        disabled=escolha is None
+    ):
+        livro_base = livros.loc[escolha]
+        resultados = recomendar_por_livro(
+            escolha, matriz_tfidf, livros, QUANTIDADE_RECOMENDACOES
         )
-
-        if st.button("Buscar recomendações", key="botao_livro", type="primary"):
-            livro_base = livros.loc[escolha]
-            resultados = recomendar_por_livro(
-                escolha, matriz_tfidf, livros, QUANTIDADE_RECOMENDACOES
-            )
-            st.session_state.resultados = resultados
-            st.session_state.metadados_pesquisa = {
-                "tipo": "Livro",
-                "consulta": livro_base["titulo"],
-                "titulo_base": livro_base["titulo"]
-            }
-            st.session_state.avaliacoes = {}
-    elif busca_titulo.strip():
-        st.info("Nenhum livro encontrado com esse trecho. Tente outra busca.")
+        st.session_state.resultados = resultados
+        st.session_state.metadados_pesquisa = {
+            "tipo": "Livro",
+            "consulta": livro_base["titulo"],
+            "titulo_base": livro_base["titulo"],
+            "autor_base": livro_base["autor"],
+            "descricao_base": livro_base["descricao"]
+        }
+        st.session_state.avaliacoes = {}
 
 with aba_sinopse:
     st.subheader("Encontre livros a partir de uma descrição")
@@ -319,7 +311,14 @@ if st.session_state.resultados is not None:
     st.header("Suas 5 recomendações")
 
     if metadados["tipo"] == "Livro":
-        st.write(f"Livro pesquisado: **{metadados['titulo_base']}**")
+        st.subheader("Livro escolhido")
+        st.markdown(f"**{metadados['titulo_base']}** — {metadados.get('autor_base', 'Autor não informado')}")
+        sinopse_base = str(metadados.get("descricao_base", "")).strip()
+        if sinopse_base and sinopse_base.lower() != "nan":
+            st.markdown("**Sinopse**")
+            st.write(sinopse_base)
+        else:
+            st.caption("Este livro não possui sinopse cadastrada.")
     else:
         st.write("Pesquisa realizada a partir da sinopse informada.")
 
@@ -331,7 +330,7 @@ if st.session_state.resultados is not None:
     for numero, (_, livro) in enumerate(resultados.iterrows(), start=1):
         titulo = str(livro["titulo"])
         autor = str(livro["autor"])
-        genero = str(livro.get("genero", ""))
+        descricao = str(livro.get("descricao", "")).strip()
         similaridade = float(livro["similaridade"])
 
         with st.container(border=True):
@@ -340,14 +339,12 @@ if st.session_state.resultados is not None:
             with col_info:
                 st.markdown(f"**{numero}. {titulo}**")
                 st.write(f"Autor: {autor}")
-                if genero and genero.lower() != "nan":
-                    st.caption(f"Gênero: {genero}")
-                st.caption(f"Similaridade textual: {similaridade:.1%}")
-
-                descricao = str(livro.get("descricao", ""))
+                st.markdown("**Sinopse**")
                 if descricao and descricao.lower() != "nan":
-                    with st.expander("Ver sinopse"):
-                        st.write(descricao)
+                    st.write(descricao)
+                else:
+                    st.caption("Sinopse não disponível.")
+                st.caption(f"Similaridade textual: {similaridade:.1%}")
 
             with col_nota:
                 chave = f"avaliacao_{numero}"
